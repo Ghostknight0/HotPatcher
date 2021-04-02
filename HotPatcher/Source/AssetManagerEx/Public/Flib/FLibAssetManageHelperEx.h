@@ -87,6 +87,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "GWorld|Flib|AssetManagerExEx")
 		static bool GetAssetPackageGUID(const FString& InPackagePath, FString& OutGUID);
+	UFUNCTION(BlueprintCallable, Category = "GWorld|Flib|AssetManagerExEx")
+		static bool GetAssetPackageDiskSize(const FString& InPackagePath, int64& OutDiskSize);
 
 	// Combine AssetDependencies Filter repeat asset
 	UFUNCTION(BlueprintPure, Category = "GWorld|Flib|AssetManager", meta = (CommutativeAssociativeBinaryOperator = "true"))

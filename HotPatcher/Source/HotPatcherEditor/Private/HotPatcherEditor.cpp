@@ -178,6 +178,16 @@ void FHotPatcherEditorModule::AddAssetContentMenu()
 	
            InSection.AddMenuEntry("CookUtilities_AddToPatchSettgins", Label, ToolTip, Icon, UIAction);
        }));
+
+	Section.AddDynamicEntry("ShowAssetGuid", FNewToolMenuSectionDelegate::CreateLambda([this](FToolMenuSection& mInSection)
+	{
+		const TAttribute<FText> Label = LOCTEXT("CookUtilities_ShowAssetGuid", "Show Asset Guid");
+		const TAttribute<FText> ToolTip = LOCTEXT("CookUtilities_ShowAssetGuidTooltip", "Show the Asset's GUID");
+		const FSlateIcon Icon = FSlateIcon(FEditorStyle::GetStyleSetName(), "ContentBrowser.AssetActions.Duplicate");
+		const FToolMenuExecuteAction UIAction = FToolMenuExecuteAction::CreateRaw(this, &FHotPatcherEditorModule::OnShowAssetGuid);
+
+		mInSection.AddMenuEntry("CookUtilities_ShowAssetGuid", Label, ToolTip, Icon, UIAction);
+	}));
 }
 
 void FHotPatcherEditorModule::OnAddToPatchSettings(const FToolMenuContext& MenuContent)
@@ -198,6 +208,23 @@ void FHotPatcherEditorModule::OnAddToPatchSettings(const FToolMenuContext& MenuC
 		AssetsSoftPath.AddUnique(PatchSettingAssetElement);
 	}
 	GPatchSettings->IncludeSpecifyAssets.Append(AssetsSoftPath);
+}
+
+void FHotPatcherEditorModule::OnShowAssetGuid(const FToolMenuContext& MenuContent)
+{
+	TArray<FAssetData> AssetsData = GetSelectedAssetsInBrowserContent();
+
+	for (const auto& AssetData : AssetsData)
+	{
+		FAssetDetail AssetDetail;
+		AssetDetail.mAssetType = AssetData.AssetClass.ToString();
+		UFLibAssetManageHelperEx::ConvLongPackageNameToPackagePath(AssetData.PackageName.ToString(), AssetDetail.mPackagePath);
+
+		UFLibAssetManageHelperEx::GetAssetPackageGUID(AssetData.PackageName.ToString(), AssetDetail.mGuid);
+
+		GEngine->AddOnScreenDebugMessage(-1,10,FColor::Blue, AssetDetail.mGuid);
+		UE_LOG(LogTemp, Log, TEXT("%s"), *AssetDetail.mGuid);
+	}
 }
 
 void FHotPatcherEditorModule::MakeCookActionsSubMenu(UToolMenu* Menu)

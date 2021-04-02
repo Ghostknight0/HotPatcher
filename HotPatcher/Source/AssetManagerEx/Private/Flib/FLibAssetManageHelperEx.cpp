@@ -151,6 +151,21 @@ bool UFLibAssetManageHelperEx::GetAssetPackageGUID(const FString& InPackagePath,
 	return bResult;
 }
 
+bool UFLibAssetManageHelperEx::GetAssetPackageDiskSize(const FString& InPackagePath, int64& OutDiskSize)
+{
+	bool bResult = false;
+	if (InPackagePath.IsEmpty())
+		return false;
+
+	const FAssetPackageData* AssetPackageData = UFLibAssetManageHelperEx::GetPackageDataByPackagePath(InPackagePath);
+	if (AssetPackageData != NULL)
+	{
+		OutDiskSize = AssetPackageData->DiskSize;
+		bResult = true;
+	}
+	return bResult;
+}
+
 
 FAssetDependenciesInfo UFLibAssetManageHelperEx::CombineAssetDependencies(const FAssetDependenciesInfo& A, const FAssetDependenciesInfo& B)
 {

@@ -44,7 +44,7 @@ const FVector2D Icon40x40(40.0f, 40.0f);
 TSharedRef< FSlateStyleSet > FHotPatcherStyle::Create()
 {
 	TSharedRef< FSlateStyleSet > Style = MakeShareable(new FSlateStyleSet("HotPatcherStyle"));
-	Style->SetContentRoot(IPluginManager::Get().FindPlugin("HotPatcher")->GetBaseDir() / TEXT("Resources"));
+	Style->SetContentRoot(IPluginManager::Get().FindPlugin("KDLC")->GetBaseDir() / TEXT("Resources"));
 
 	Style->Set("HotPatcher.PluginAction", new IMAGE_BRUSH(TEXT("ButtonIcon_40x"), Icon40x40));
 

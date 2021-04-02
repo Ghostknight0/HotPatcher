@@ -4,6 +4,7 @@
 #include "CreatePatch/SHotPatcherExportPatch.h"
 #include "CreatePatch/SHotPatcherExportRelease.h"
 #include "ShaderPatch/SHotPatcherExportShaderPatch.h"
+#include "CreatePatch/SHotPatcherCreatePaks.h"
 
 // engine header
 #include "Framework/Commands/UIAction.h"
@@ -33,6 +34,9 @@ void SProjectCreatePatchPage::Construct(const FArguments& InArgs, TSharedPtr<FHo
 
 		FUIAction ByShaderPatchAction(FExecuteAction::CreateSP(this, &SProjectCreatePatchPage::HandleHotPatcherMenuEntryClicked, EHotPatcherActionModes::ByShaderPatch));
 		PatchModeMenuBuilder.AddMenuEntry(LOCTEXT("ByShaderPatch", "ByShaderPatch"), LOCTEXT("CreateShaderPatchActionHint", "Create an Shader code Patch form Metadata."), FSlateIcon(), ByShaderPatchAction);
+	
+		FUIAction ByCreatePakAction(FExecuteAction::CreateSP(this, &SProjectCreatePatchPage::HandleHotPatcherMenuEntryClicked, EHotPatcherActionModes::ByCreatePaks));
+		PatchModeMenuBuilder.AddMenuEntry(LOCTEXT("ByCreatePaks", "ByPak"), LOCTEXT("CreatePaksActionHint", "Create Paks form CreatePaks version."), FSlateIcon(), ByCreatePakAction);
 	}
 
 	ChildSlot
@@ -119,13 +123,20 @@ void SProjectCreatePatchPage::Construct(const FArguments& InArgs, TSharedPtr<FHo
 				SAssignNew(mRelease,SHotPatcherExportRelease, mCreatePatchModel)
 				.Visibility(this, &SProjectCreatePatchPage::HandleExportReleaseVisibility)
 			]
-			+ SVerticalBox::Slot()
-                .AutoHeight()
-                .Padding(0.0, 8.0, 0.0, 0.0)
-                [
-                    SAssignNew(mShaderPatch,SHotPatcherExportShaderPatch, mCreatePatchModel)
-                    .Visibility(this, &SProjectCreatePatchPage::HandleExportShaderPatchVisibility)
-                ]
+		+ SVerticalBox::Slot()
+            .AutoHeight()
+            .Padding(0.0, 8.0, 0.0, 0.0)
+            [
+                SAssignNew(mShaderPatch,SHotPatcherExportShaderPatch, mCreatePatchModel)
+                .Visibility(this, &SProjectCreatePatchPage::HandleExportShaderPatchVisibility)
+            ]
+		+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.0, 8.0, 0.0, 0.0)
+			[
+				SAssignNew(mCreatePaks, SHotPatcherCreatePaks, mCreatePatchModel)
+				.Visibility(this, &SProjectCreatePatchPage::HandleCreatePaksVisibility)
+			]
 	];
 
 	HandleHotPatcherMenuEntryClicked(EHotPatcherActionModes::ByPatch);
@@ -189,6 +200,11 @@ TSharedPtr<IPatchableInterface> SProjectCreatePatchPage::GetActivePatchable()con
 				result = mShaderPatch;
 				break;
 			}
+			case EHotPatcherActionModes::ByCreatePaks:
+			{
+				result = mCreatePaks;
+				break;
+			}
 		}
 	}
 	return result;
@@ -224,6 +240,19 @@ EVisibility SProjectCreatePatchPage::HandleExportShaderPatchVisibility() const
 	if (mCreatePatchModel.IsValid())
 	{
 		if (mCreatePatchModel->GetPatcherMode() == EHotPatcherActionModes::ByShaderPatch)
+		{
+			return EVisibility::Visible;
+		}
+	}
+
+	return EVisibility::Collapsed;
+}
+
+EVisibility SProjectCreatePatchPage::HandleCreatePaksVisibility() const
+{
+	if (mCreatePatchModel.IsValid())
+	{
+		if (mCreatePatchModel->GetPatcherMode() == EHotPatcherActionModes::ByCreatePaks)
 		{
 			return EVisibility::Visible;
 		}
@@ -276,6 +305,10 @@ FText SProjectCreatePatchPage::HandlePatchModeComboButtonContentText() const
         {
         	return LOCTEXT("PatcherModeComboButton_ByShaderPatch", "By SahderPatch");
         }
+		if (PatcherMode == EHotPatcherActionModes::ByCreatePaks)
+		{
+			return LOCTEXT("PatcherModeComboButton_ByCreatePaks", "By CreatePaks");
+		}
 	}
 
 	return FText();
