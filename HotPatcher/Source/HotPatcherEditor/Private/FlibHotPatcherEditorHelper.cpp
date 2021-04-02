@@ -538,3 +538,155 @@ void UFlibHotPatcherEditorHelper::BackupMetadataDir(const FString& ProjectDir, c
 		}
 	}
 }
+
+bool UFlibHotPatcherEditorHelper::SerializeCreatePaksConfigToJsonObject(const UCreatePaksSettings* const InCreatePaksSetting, TSharedPtr<FJsonObject>& OutJsonObject)
+{
+
+	auto SerializeArrayLambda = [&OutJsonObject](const TArray<FString>& InArray, const FString& InJsonArrayName)
+	{
+		TArray<TSharedPtr<FJsonValue>> ArrayJsonValueList;
+		for (const auto& ArrayItem : InArray)
+		{
+			ArrayJsonValueList.Add(MakeShareable(new FJsonValueString(ArrayItem)));
+		}
+		OutJsonObject->SetArrayField(InJsonArrayName, ArrayJsonValueList);
+	};
+
+	auto SerializeAssetDependencyTypes = [&OutJsonObject](const FString& InName, const TArray<EAssetRegistryDependencyTypeEx>& InTypes)
+	{
+		TArray<TSharedPtr<FJsonValue>> TypesJsonValues;
+		for (const auto& Type : InTypes)
+		{
+			TSharedPtr<FJsonValue> CurrentJsonValue = MakeShareable(new FJsonValueString(UFlibPatchParserHelper::GetEnumNameByValue(Type)));
+			TypesJsonValues.Add(CurrentJsonValue);
+		}
+		OutJsonObject->SetArrayField(InName, TypesJsonValues);
+	};
+
+	auto SerializeFeatureConfigsToJsonObject = [](const FDLCFeatureConfig& InFeatureInfo, TSharedPtr<FJsonObject>& OutJsonObject)
+	{
+		if (!OutJsonObject.IsValid())
+		{
+			OutJsonObject = MakeShareable(new FJsonObject);
+		}
+		OutJsonObject->SetStringField(TEXT("SceneName"), InFeatureInfo.SceneName);
+		OutJsonObject->SetStringField(TEXT("SceneType"), InFeatureInfo.SceneType);
+		OutJsonObject->SetStringField(TEXT("ScenePriority"), InFeatureInfo.ScenePriority);
+	};
+
+
+	if (!OutJsonObject.IsValid())
+	{
+		OutJsonObject = MakeShareable(new FJsonObject);
+	}
+	OutJsonObject->SetStringField(TEXT("LogsFilePath"), InCreatePaksSetting->GetLogsFilePath());
+
+	// serialize platform list
+	{
+		TArray<FString> AllPlatforms;
+		for (const auto& Platform : InCreatePaksSetting->GetPakTargetPlatforms())
+		{
+			AllPlatforms.AddUnique(UFlibPatchParserHelper::GetEnumNameByValue(Platform));
+		}
+		SerializeArrayLambda(AllPlatforms, TEXT("PakTargetPlatforms"));
+	}
+
+
+	// serialize all add extern file to pak
+	{
+		TArray<TSharedPtr<FJsonValue>> FeatureConfigsJsonObjectList;
+		for (const auto& Feature : InCreatePaksSetting->GetFeatureConfigs())
+		{
+			TSharedPtr<FJsonObject> CurrentFileJsonObject;
+			SerializeFeatureConfigsToJsonObject(Feature, CurrentFileJsonObject);
+			FeatureConfigsJsonObjectList.Add(MakeShareable(new FJsonValueObject(CurrentFileJsonObject)));
+		}
+		OutJsonObject->SetArrayField(TEXT("FeatureConfigs"), FeatureConfigsJsonObjectList);
+	}
+
+	SerializeAssetDependencyTypes(TEXT("AssetRegistryDependencyTypes"), InCreatePaksSetting->GetAssetRegistryDependencyTypes());
+	OutJsonObject->SetStringField(TEXT("SavePath"), InCreatePaksSetting->GetSavePath());
+	OutJsonObject->SetStringField(TEXT("VersionId"), InCreatePaksSetting->VersionId);
+	OutJsonObject->SetStringField(TEXT("BuildDataPath"), InCreatePaksSetting->GetBuildDataPath());
+	return true;
+}
+
+class UCreatePaksSettings* UFlibHotPatcherEditorHelper::DeserializeCreatePaksConfig(class UCreatePaksSettings* InNewSetting, const FString& InContent)
+{
+#define DESERIAL_BOOL_BY_NAME(SettingObject,JsonObject,MemberName) SettingObject->MemberName = JsonObject->GetBoolField(TEXT(#MemberName));
+#define DESERIAL_STRING_BY_NAME(SettingObject,JsonObject,MemberName) SettingObject->MemberName = JsonObject->GetStringField(TEXT(#MemberName));
+	TSharedRef<TJsonReader<TCHAR>> JsonReader = TJsonReaderFactory<TCHAR>::Create(InContent);
+	TSharedPtr<FJsonObject> JsonObject;
+	if (FJsonSerializer::Deserialize(JsonReader, JsonObject))
+	{
+		// 
+		{
+			InNewSetting->LogsFilePath.Path = JsonObject->GetStringField(TEXT("LogsFilePath"));
+			// TargetPlatform
+			{
+
+				TArray<TSharedPtr<FJsonValue>> TargetPlatforms;
+				TargetPlatforms = JsonObject->GetArrayField(TEXT("PakTargetPlatforms"));
+
+				TArray<ETargetPlatform> FinalTargetPlatforms;
+
+				for (const auto& Platform : TargetPlatforms)
+				{
+					ETargetPlatform CurrentEnum;
+					if (UFlibPatchParserHelper::GetEnumValueByName(Platform->AsString(), CurrentEnum))
+					{
+						FinalTargetPlatforms.Add(CurrentEnum);
+					}
+				}
+				InNewSetting->PakTargetPlatforms = FinalTargetPlatforms;
+			}
+
+			// extern directory
+			{
+				TArray<FDLCFeatureConfig> FeatureConfigsArray;
+				TArray<TSharedPtr<FJsonValue>> FeatureConfigsJsonValues;
+
+				FeatureConfigsJsonValues = JsonObject->GetArrayField(TEXT("FeatureConfigs"));
+
+				for (const auto& FileJsonValue : FeatureConfigsJsonValues)
+				{
+					FDLCFeatureConfig Feature;
+					TSharedPtr<FJsonObject> FileJsonObjectValue = FileJsonValue->AsObject();
+
+					Feature.SceneName = FileJsonObjectValue->GetStringField(TEXT("SceneName"));
+					Feature.ScenePriority = FileJsonObjectValue->GetStringField(TEXT("ScenePriority"));
+					Feature.SceneType = FileJsonObjectValue->GetStringField(TEXT("SceneType"));
+
+					FeatureConfigsArray.AddUnique(Feature);
+				}
+				InNewSetting->FeatureConfigs = FeatureConfigsArray;
+			}
+
+			// deserialize AssetRegistryDependencyTypes
+			{
+				TArray<EAssetRegistryDependencyTypeEx> result;
+				TArray<TSharedPtr<FJsonValue>> AssetRegistryDependencyTypes = JsonObject->GetArrayField(TEXT("AssetRegistryDependencyTypes"));
+				for (const auto& TypeJsonValue : AssetRegistryDependencyTypes)
+				{
+					EAssetRegistryDependencyTypeEx CurrentType;
+					if (UFlibPatchParserHelper::GetEnumValueByName(TypeJsonValue->AsString(), CurrentType))
+					{
+						result.AddUnique(CurrentType);
+					}
+				}
+				InNewSetting->AssetRegistryDependencyTypes = result;
+			}
+
+			InNewSetting->SavePath.Path = JsonObject->GetStringField(TEXT("SavePath"));
+			InNewSetting->VersionId = JsonObject->GetStringField(TEXT("VersionId"));
+			InNewSetting->BuildDataPath.Path = JsonObject->GetStringField(TEXT("BuildDataPath"));
+		}
+	}
+
+#undef DESERIAL_BOOL_BY_NAME
+#undef DESERIAL_STRING_BY_NAME
+	return InNewSetting;
+}
+
+
+

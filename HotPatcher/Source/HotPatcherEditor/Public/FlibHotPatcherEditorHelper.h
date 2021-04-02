@@ -62,4 +62,6 @@ public:
 	static FString GetMetadataDir(const FString& ProjectDir,const FString& ProjectName,ETargetPlatform Platform);
 	
 	static void BackupMetadataDir(const FString& ProjectDir,const FString& ProjectName,const TArray<ETargetPlatform>& Platforms,const FString& OutDir);
+	static bool SerializeCreatePaksConfigToJsonObject(const class UCreatePaksSettings*const InCreatePaksSetting, TSharedPtr<FJsonObject>& OutJsonObject);
+	static class UCreatePaksSettings* DeserializeCreatePaksConfig(class UCreatePaksSettings* InNewSetting, const FString& InContent);
 };
