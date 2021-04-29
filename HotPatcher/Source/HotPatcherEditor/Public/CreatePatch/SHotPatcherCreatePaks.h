@@ -70,13 +70,13 @@ protected:
 
 	bool FindAllRefFiles(FString AssetPath, TMap<FString, FString>& RefDic);
 
-	bool WriteRecursiveDictToJson(FString FileSaveName);
+	bool WriteRecursiveDictToJson(FString FileSaveName,bool is_add);
 
 	bool WriteFile2PakDictToJson(FString FileSaveName);
 
 	void CreateDir(FString filePath);
 
-	bool WriteScene2PaksDictToJson(FString FileSaveName);
+	bool WriteScene2PaksDictToJson(FString FileSaveName, bool is_add = false);
 
 	void ScanDirectory(TArray<FString>& Files, const FString& FilePath, const FString& Extension);
 	void ScanDirectoryRecursive(TArray<FString>& Files, const FString& FilePath, const FString& Extension);
@@ -107,9 +107,11 @@ protected:
 
 	bool FillSceneDic();
 
+	bool FillSceneDic_add();
+
 	void FillTypeResourceSilptDLCandAPKLevel();
 
-	void FillDirectAndRecursionDependence();
+	void FillDirectAndRecursionDependence(bool is_add = false);
 
 	bool WritePakFilesInfoMapToJsons(TMap<FString, TArray<FPakFileInfo>>& PakFilesInfoMap);
 
@@ -155,6 +157,8 @@ protected:
 	bool WriteAllAsset2PakIDByJsonObj(FString FileSaveName);
 
 	//void WriteNewReleaseJsonFile(UPatcherProxy* PatcherProxy);
+	void FillExternFilesInPak(bool is_add = false);
+	bool IsInExternDir(FString& FilePath, FString& OutDirectoryPath);
 private:
 
 	// TSharedPtr<FHotPatcherCreatePatchModel> mCreatePatchModel;
@@ -211,4 +215,7 @@ private:
 
 	TMap<FString, FString> m_TempFileNoSpecify2Pak;//非asset文件中未指定包体的文件列表
 	TSharedPtr<FJsonObject> m_TempFileNoSpecify2Pak_JsonObj;
+
+	TMap<FString, FString> m_ExternFiles2Pak;//额外指定文件对应的包体分配管理
+	TMap<FString, FString> m_ExternDirectory2Pak;//额外指定路径对应的包体分配管理
 };

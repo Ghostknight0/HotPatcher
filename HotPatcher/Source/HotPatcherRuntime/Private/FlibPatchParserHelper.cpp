@@ -1315,6 +1315,15 @@ FHotPatcherVersion UFlibPatchParserHelper::ExportReleaseVersionInfo(
 				FAssetDependenciesInfo AssetDependencies;
 				UFLibAssetManageHelperEx::GetAssetListDependenciesForAssetDetail(InAssetDetail,AssetRegistryDependencyTypes, AssetDependencies);
 
+				//处理key为空时出现的错误
+				for (auto It = AssetDependencies.AssetsDependenciesMap.CreateIterator(); It; ++It)
+				{
+					if (It.Key().IsEmpty())
+					{
+						AssetDependencies.AssetsDependenciesMap.Remove(It.Key());
+					}
+				}
+
 				RetAssetDepend = UFLibAssetManageHelperEx::CombineAssetDependencies(RetAssetDepend, AssetDependencies);
 			}
 		}

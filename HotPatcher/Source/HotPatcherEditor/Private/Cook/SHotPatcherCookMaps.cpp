@@ -7,6 +7,8 @@
 #include "Widgets/Layout/SSeparator.h"
 #include "FlibPatchParserHelper.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Kismet/KismetStringLibrary.h"
+#include "HotPatcherLog.h"
 
 #define LOCTEXT_NAMESPACE "SHotPatcherCookMaps"
 
@@ -130,6 +132,7 @@ FString SHotPatcherCookMaps::GetSerializeName()const
 void SHotPatcherCookMaps::Reset()
 {
 	mCookModel->ClearAllMap();
+	AddIniMapToSelected();
 }
 
 
@@ -144,7 +147,46 @@ void SHotPatcherCookMaps::RefreshMapList()
 		MapList.Add(MakeShareable(new FString(Map)));
 	}
 
+	AddIniMapToSelected();
+
 	MapListView->RequestListRefresh();
+}
+
+void SHotPatcherCookMaps::AddIniMapToSelected()
+{
+	//加入配置文件
+	TArray<FString> ValueReceived;
+	if (GConfig)
+	{
+		GConfig->GetArray(
+			TEXT("/Script/UnrealEd.ProjectPackagingSettings"),
+			TEXT("MapsToCook"),
+			ValueReceived,
+			GGameIni
+		);
+	}
+	TArray<FString> Maps;
+	for (auto& FilePathStr : ValueReceived)
+	{
+		int32 FoundIndex;
+		int32 FoundEndIndex;
+		FString MapName;
+		FilePathStr.FindLastChar('/', FoundIndex);
+		FoundEndIndex = FilePathStr.Find(TEXT("\")"));
+		if (FoundIndex != INDEX_NONE && FoundEndIndex != INDEX_NONE)
+		{
+			MapName = UKismetStringLibrary::GetSubstring(FilePathStr, FoundIndex + 1, FoundEndIndex - FoundIndex - 1);
+			Maps.AddUnique(MapName);
+		}
+		else
+		{
+			UE_LOG(LogHotPatcher, Log, TEXT("CookMap FilePathStr Not Find: %s "), *FilePathStr);
+		}
+	}
+	for (int32 MapIndex = 0; MapIndex < Maps.Num(); ++MapIndex)
+	{
+		mCookModel->AddSelectedCookMap(Maps[MapIndex]);
+	}
 }
 
 TSharedRef<ITableRow> SHotPatcherCookMaps::HandleMapListViewGenerateRow(TSharedPtr<FString> InItem, const TSharedRef<STableViewBase>& OwnerTable)

@@ -23,7 +23,7 @@ public class KDLC : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-                "Core", "CoreUObject", "Engine", "InputCore" , "PakFile", "Json" 
+                "Core", "CoreUObject", "Engine", "InputCore" , "PakFile", "Json" ,"HotPatcherRuntime"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);

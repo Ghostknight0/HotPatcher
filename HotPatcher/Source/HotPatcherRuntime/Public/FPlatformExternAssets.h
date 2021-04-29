@@ -30,4 +30,17 @@ struct FPlatformExternAssets
     }
 };
 
+USTRUCT(BlueprintType)
+struct FPlatformExternAssetsEx :public FPlatformExternAssets
+{
+    GENERATED_USTRUCT_BODY()
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FString PakName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString SceneType = TEXT("Apk");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    bool bIteratePak = false;
+};

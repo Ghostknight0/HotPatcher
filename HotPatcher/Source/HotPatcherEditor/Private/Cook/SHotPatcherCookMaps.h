@@ -61,6 +61,8 @@ protected:
 
 	TSharedRef<ITableRow> HandleMapListViewGenerateRow(TSharedPtr<FString> InItem, const TSharedRef<STableViewBase>& OwnerTable);
 	void RefreshMapList();
+
+	void AddIniMapToSelected();
 private:
 
 	/** Holds the map list. */

@@ -36,6 +36,7 @@ public:
 #if ENGINE_MINOR_VERSION >23
 	void AddAssetContentMenu();
 	void OnAddToPatchSettings(const FToolMenuContext& MenuContent);
+	void OnShowAssetGuid(const FToolMenuContext& MenuContent);
 	void MakeCookActionsSubMenu(UToolMenu* Menu);
 	void MakeCookAndPakActionsSubMenu(UToolMenu* Menu);
 	void AddFolderContentMenu();

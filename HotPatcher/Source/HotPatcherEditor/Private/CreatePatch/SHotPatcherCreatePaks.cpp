@@ -209,7 +209,7 @@ bool SHotPatcherCreatePaks::FindAllRefFiles(FString AssetPath, TMap<FString, FSt
 	return true;
 }
 
-bool SHotPatcherCreatePaks::WriteScene2PaksDictToJson(FString FileSaveName)
+bool SHotPatcherCreatePaks::WriteScene2PaksDictToJson(FString FileSaveName,bool is_add)
 {
 	TSharedPtr<FJsonObject> RootJsonObject = MakeShareable(new FJsonObject);
 
@@ -233,11 +233,15 @@ bool SHotPatcherCreatePaks::WriteScene2PaksDictToJson(FString FileSaveName)
 	FString OutString;
 	auto JsonWriter = TJsonWriterFactory<TCHAR>::Create(&OutString);
 	FJsonSerializer::Serialize(RootJsonObject.ToSharedRef(), JsonWriter);
-	FString RecursiveDictToJson = FString::Printf(TEXT("%sBuildData/%s/%s/%s"), *FPaths::ProjectDir(), *m_strPlatform, FApp::GetProjectName(), *FileSaveName);
-	if (UFLibAssetManageHelperEx::SaveStringToFile(RecursiveDictToJson, OutString))
+	FString Scene2PakIDListPath = FString::Printf(TEXT("%sBuildData/%s/%s/%s"), *FPaths::ProjectDir(), *m_strPlatform, FApp::GetProjectName(), *FileSaveName);
+	if (is_add)
 	{
-		auto Msg = LOCTEXT("RecursiveDictToJson", "Succeed to export Asset Related info.");
-		UFlibHotPatcherEditorHelper::CreateSaveFileNotify(Msg, RecursiveDictToJson);
+		Scene2PakIDListPath = FString::Printf(TEXT("%s/%s/%s/%s"), *m_CreatePaksSettings->GetBuildDataPath(), *m_strPlatform, FApp::GetProjectName(), *FileSaveName);
+	}
+	if (UFLibAssetManageHelperEx::SaveStringToFile(Scene2PakIDListPath, OutString))
+	{
+		auto Msg = LOCTEXT("Scene2PakIDList", "Succeed to export Scene2Pak info.");
+		UFlibHotPatcherEditorHelper::CreateSaveFileNotify(Msg, Scene2PakIDListPath);
 	}
 	return true;
 }
@@ -292,7 +296,7 @@ bool SHotPatcherCreatePaks::WriteAllAsset2PakIDByJsonObj(FString FileSaveName)
 //	UFLibAssetManageHelperEx::SaveStringToFile(SaveCurrentVersionToFile, SerializeReleaseVersionInfo);
 //}
 
-bool SHotPatcherCreatePaks::WriteRecursiveDictToJson(FString FileSaveName)
+bool SHotPatcherCreatePaks::WriteRecursiveDictToJson(FString FileSaveName,bool is_add)
 {
 	TSharedPtr<FJsonObject> RootJsonObject = MakeShareable(new FJsonObject);
 
@@ -317,6 +321,10 @@ bool SHotPatcherCreatePaks::WriteRecursiveDictToJson(FString FileSaveName)
 	auto JsonWriter = TJsonWriterFactory<TCHAR>::Create(&OutString);
 	FJsonSerializer::Serialize(RootJsonObject.ToSharedRef(), JsonWriter);
 	FString RecursiveDictToJson = FString::Printf(TEXT("%sBuildData/%s/%s/%s"), *FPaths::ProjectDir(), *m_strPlatform, FApp::GetProjectName(), *FileSaveName);
+	if (is_add)
+	{
+		RecursiveDictToJson = FString::Printf(TEXT("%s/%s/%s/%s"), *m_CreatePaksSettings->GetBuildDataPath(), *m_strPlatform, FApp::GetProjectName(), *FileSaveName);
+	}
 	if (UFLibAssetManageHelperEx::SaveStringToFile(RecursiveDictToJson, OutString))
 	{
 		auto Msg = LOCTEXT("RecursiveDictToJson", "Succeed to export Asset Related info.");
@@ -399,7 +407,8 @@ bool SHotPatcherCreatePaks::GetPakOMandatoryFilesByResourceType()
 {
 	bool bResult = false;
 
-	TArray<FString> InFilterPackagePaths = TArray<FString>{ "/Game/UI", "/Game/Effects", "/Game/Characters" };
+	//TArray<FString> InFilterPackagePaths = TArray<FString>{ "/Game/UI", "/Game/Effects", "/Game/Characters" };
+	TArray<FString> InFilterPackagePaths = UFlibPatchParserHelper::GetDirectoryPaths(m_CreatePaksSettings->AssetMandatoryIncludeFilters);
 	TArray<EAssetRegistryDependencyTypeEx> AssetRegistryDependencyTypes = TArray<EAssetRegistryDependencyTypeEx>{ EAssetRegistryDependencyTypeEx::All };
 	UFLibAssetManageHelperEx::GetAssetsList(InFilterPackagePaths, AssetRegistryDependencyTypes, m_AllPak0Assets);
 
@@ -546,7 +555,7 @@ void SHotPatcherCreatePaks::FillTypeResourceSilptDLCandAPKLevel()
 		}
 		else
 		{
-			m_TypeResource[Item.mAssetType].Add(Item.mPackagePath);
+			m_TypeResource[Item.mAssetType].AddUnique(Item.mPackagePath);
 		}
 
 		if (Item.mAssetType.Equals("World", ESearchCase::IgnoreCase))
@@ -665,7 +674,7 @@ bool SHotPatcherCreatePaks::isPakFull(FString& AssetPath, FString& PakName, FStr
 
 // TMap<FString, TArray<FString>> m_File2DirectDependence;
 // TMap<FString, TArray<FString>> m_File2RecursionDependence;
-void SHotPatcherCreatePaks::FillDirectAndRecursionDependence()
+void SHotPatcherCreatePaks::FillDirectAndRecursionDependence(bool is_add)
 {
 	/// <summary>
 	/// 找到循环依赖
@@ -717,7 +726,7 @@ void SHotPatcherCreatePaks::FillDirectAndRecursionDependence()
 
 	m_File2RecursionDependence.KeySort([](FString A, FString B) {return A > B; });
 
-	WriteRecursiveDictToJson("RecursiveDictToJson.json");
+	WriteRecursiveDictToJson("RecursiveDictToJson.json", is_add);
 }
 
 bool SHotPatcherCreatePaks::AssetResoruceFillinPak(FString& AssetResoruce, FString& PakName, FString& SceneName)
@@ -855,6 +864,96 @@ bool SHotPatcherCreatePaks::FillSceneDic()
 	return bResult;
 }
 
+bool SHotPatcherCreatePaks::FillSceneDic_add()
+{
+	bool bResult = false;
+	FString strReourceName = "";
+	FString strDependenceReourceName = "";
+	FString SceneName = "";
+	for (const auto& Item : m_apkMapDic)
+	{
+		if (Item.Value.Equals("Common", ESearchCase::IgnoreCase))
+		{
+			continue;
+		}
+
+		strReourceName = Item.Value;
+		SceneName = Item.Value;
+
+		//if (!m_AllAsset2PakID.Contains(strReourceName))
+		FString CheckPakName;
+		if (!m_AllAsset2PakID_JsonObj->TryGetStringField(strReourceName, CheckPakName))
+		{
+			UE_LOG(LogTemp, Log, TEXT("!!!!!!!!!!!!Error Error is %s not in m_AllAsset2PakID_JsonObj."), *strReourceName);
+			continue;
+		}
+		FString PakName;
+		PakName = m_AllAsset2PakID_JsonObj->GetStringField(strReourceName);
+		AssetResoruceFillinScene(strReourceName, PakName, SceneName);
+
+		////Asset Dependence
+		if (m_File2RecursionDependence.Contains(strReourceName))
+		{
+			for (const auto& ItemDependence : m_File2RecursionDependence[strReourceName])
+			{
+				strDependenceReourceName = ItemDependence;
+				//if (!m_AllAsset2PakID.Contains(strDependenceReourceName))
+				if (!m_AllAsset2PakID_JsonObj->TryGetStringField(strDependenceReourceName, CheckPakName))
+				{
+					UE_LOG(LogTemp, Log, TEXT("!!!!!!!!!!!!Error Error is strDependenceReourceName  %s not in m_AllAsset2PakID_JsonObj."), *strDependenceReourceName);
+					continue;
+				}
+				PakName = m_AllAsset2PakID_JsonObj->GetStringField(strDependenceReourceName);
+				AssetResoruceFillinScene(strDependenceReourceName, PakName, SceneName);
+			}
+		}
+	}
+
+	for (const auto& Item : m_dlcMapDic)
+	{
+		if (Item.Value.Equals("Common", ESearchCase::IgnoreCase))
+		{
+			continue;
+		}
+
+		strReourceName = Item.Value;
+		SceneName = Item.Value;
+
+		//if (!m_AllAsset2PakID.Contains(strReourceName))
+		FString CheckPakName;
+		if (!m_AllAsset2PakID_JsonObj->TryGetStringField(strReourceName, CheckPakName))
+		{
+			UE_LOG(LogTemp, Log, TEXT("!!!!!!!!!!!!Error Error strReourceName is %s not in m_AllAsset2PakID_JsonObj."), *strReourceName);
+			continue;
+		}
+
+		FString PakName;
+		PakName = m_AllAsset2PakID_JsonObj->GetStringField(strReourceName);
+		AssetResoruceFillinScene(strReourceName, PakName, SceneName);
+
+		////Asset Dependence
+		if (m_File2RecursionDependence.Contains(strReourceName))
+		{
+			for (const auto& ItemDependence : m_File2RecursionDependence[strReourceName])
+			{
+				strDependenceReourceName = ItemDependence;
+
+				//if (!m_AllAsset2PakID.Contains(strDependenceReourceName))
+				if (!m_AllAsset2PakID_JsonObj->TryGetStringField(strDependenceReourceName, CheckPakName))
+				{
+					UE_LOG(LogTemp, Log, TEXT("!!!!!!!!!!!!Error Error strDependenceReourceName is %s not in m_AllAsset2PakID_JsonObj."), *strDependenceReourceName);
+					continue;
+				}
+				PakName = m_AllAsset2PakID_JsonObj->GetStringField(strDependenceReourceName);
+				AssetResoruceFillinScene(strDependenceReourceName, PakName, SceneName);
+			}
+		}
+	}
+
+	bResult = true;
+	return bResult;
+}
+
 bool SHotPatcherCreatePaks::AssetResoruceFillinScene(FString& AssetResoruce, FString& PakName, FString& SceneName)
 {
 	bool bResult = false;
@@ -953,6 +1052,61 @@ void SHotPatcherCreatePaks::FillTempFilesinPak(bool isDiff)
 		m_TempFileRelativePath.Add(CookedIniRelativePath, IniConfingPakName);
 	}
 }
+
+void SHotPatcherCreatePaks::FillExternFilesInPak(bool is_add)
+{
+	//根据平台配置的指定路径，获取文件
+	if (!!m_CreatePaksSettings->AddExternAssetsToPlatform.Num())
+	{
+		FString ExternPakName;
+
+		ETargetPlatform Platform;
+		UFlibPatchParserHelper::GetEnumValueByName(m_strPlatform, Platform);
+
+		for (const auto& PlatformExternAssetsEx : m_CreatePaksSettings->AddExternAssetsToPlatform)
+		{
+			if (PlatformExternAssetsEx.TargetPlatform == Platform || PlatformExternAssetsEx.TargetPlatform == ETargetPlatform::AllPlatforms)
+			{
+				//设置包名
+				ExternPakName = FString::Printf(TEXT("%s_%s_Extern_0_%s"), *m_strPlatform, *PlatformExternAssetsEx.PakName, *PlatformExternAssetsEx.SceneType);
+
+				//增量更新迭代时，包名不能重复
+				if (is_add && PlatformExternAssetsEx.bIteratePak)
+				{
+					ExternPakName = FString::Printf(TEXT("%s_%s_Extern_%s_%s"), *m_strPlatform, *PlatformExternAssetsEx.PakName, *m_CreatePaksSettings->VersionId , *PlatformExternAssetsEx.SceneType);
+				}
+
+				//添加指定文件
+				for (const auto& ExternFils : PlatformExternAssetsEx.AddExternFileToPak)
+				{
+					m_ExternFiles2Pak.Add(ExternFils.FilePath.FilePath, ExternPakName);
+				}
+				//添加指定目录路径
+				for (const auto& ExternDirectory : PlatformExternAssetsEx.AddExternDirectoryToPak)
+				{
+					m_ExternDirectory2Pak.Add(ExternDirectory.DirectoryPath.Path, ExternPakName);
+				}
+			}
+		}
+	}
+}
+
+bool SHotPatcherCreatePaks::IsInExternDir(FString& FilePath,FString& OutDirectoryPath)
+{
+	bool result = false;
+	for (const auto& DirectoryPath : m_ExternDirectory2Pak)
+	{
+		if (FilePath.Contains(DirectoryPath.Key))
+		{
+			result = true;
+			OutDirectoryPath = DirectoryPath.Key;
+			break;
+		}
+	}
+
+	return result;
+}
+
 
 bool SHotPatcherCreatePaks::SpiltPakByResourceType()
 {
@@ -1192,6 +1346,8 @@ bool SHotPatcherCreatePaks::SpiltPakByResourceType()
 	//增加Temp文件管理
 	FillTempFilesinPak();
 
+	FillExternFilesInPak();
+
 	FillSceneDic();
 
 	FillPakID2AllPakFileCommondsDic();
@@ -1304,6 +1460,7 @@ bool SHotPatcherCreatePaks::FillPakID2AllPakFileCommondsDic()
 
 			//添加额外文件分包判断
 			FString RelativePath;
+			FString DirectoryPath;
 			if (TempFile2PakIsContains(itemFile.Value, RelativePathList, RelativePath))
 			{
 				if (m_TempFileRelativePath.Contains(RelativePath))
@@ -1319,6 +1476,16 @@ bool SHotPatcherCreatePaks::FillPakID2AllPakFileCommondsDic()
 			else if(m_TempFile2Pak.Contains(itemFile.Key))
 			{
 				PakName = m_TempFile2Pak[itemFile.Key];
+			}
+			else if (m_ExternFiles2Pak.Contains(itemFile.Key))
+			{
+				PakName = m_ExternFiles2Pak[itemFile.Key];
+				m_TempFileNoSpecify2Pak.Add(itemFile.Key, PakName);
+			}
+			else if (IsInExternDir(itemFile.Key, DirectoryPath))
+			{
+				PakName = m_ExternDirectory2Pak[DirectoryPath];
+				m_TempFileNoSpecify2Pak.Add(itemFile.Key, PakName);
 			}
 			else
 			{
@@ -1448,7 +1615,7 @@ bool SHotPatcherCreatePaks::ExecuteUnrealPakProcess()
 					/// <param name="strPlatform"></param>
 					/// <returns></returns>
 					CommandLine = FString::Printf(
-						TEXT("%s -create=\"%s\" -cryptokeys=\"%s\" -order=\"%s\" -patchpaddingalign=2048 -platform=Windows -compressionformats= -multiprocess -abslog=\"%s\""),
+						TEXT("%s -create=\"%s\" -cryptokeys=\"%s\" -order=\"%s\" -patchpaddingalign=2048 -platform=Windows -compressionformats=Zlib -multiprocess -abslog=\"%s\""),
 						*PakName, *PakFileListName, *CryptoName, *CookerOpenOrderName, *PakLOGName);
 					UE_LOG(LogTemp, Log, TEXT("=======================SplitPaks CommandLine: %s."), *CommandLine);
 				}
@@ -1458,7 +1625,7 @@ bool SHotPatcherCreatePaks::ExecuteUnrealPakProcess()
 				{
 					CommandLine = FString::Printf(
 						//TEXT("%s -create=\"%s\" -cryptokeys=\"%s\" -order=\"%s\" -encryptindex -platform=Android -compressionformats= -multiprocess -abslog=\"%s\""),
-						TEXT("%s -create=\"%s\" -cryptokeys=\"%s\" -order=\"%s\" -encryptindex  -compressionformats= -multiprocess -abslog=\"%s\""),
+						TEXT("%s -create=\"%s\" -cryptokeys=\"%s\" -order=\"%s\" -encryptindex  -compressionformats=Zlib -multiprocess -abslog=\"%s\""),
 						*PakName, *PakFileListName, *CryptoName, *CookerOpenOrderName, *PakLOGName);
 					UE_LOG(LogTemp, Log, TEXT("=======================SplitPaks CommandLine: %s."), *CommandLine);
 				}
@@ -1666,6 +1833,9 @@ void SHotPatcherCreatePaks::CleanData()
 	m_TempFileNoSpecify2Pak.Empty();
 
 	m_Paks_Item_List.Empty();
+
+	m_ExternFiles2Pak.Empty();
+	m_ExternDirectory2Pak.Empty();
 }
 
 void SHotPatcherCreatePaks::SaveVersionFile(FString versioninput, FString file, TMap<FString, TArray<FString>> PakFiles)
@@ -1863,6 +2033,7 @@ FReply SHotPatcherCreatePaks::DoCreatePaks()
 
 	TArray<FString> InFilterPackagePaths = TArray<FString>{ "/Game" };
 	TArray<EAssetRegistryDependencyTypeEx> AssetRegistryDependencyTypes = m_CreatePaksSettings->GetAssetRegistryDependencyTypes();//TArray<EAssetRegistryDependencyTypeEx>{ EAssetRegistryDependencyTypeEx::All };
+	m_AllAssets.Empty();
 	UFLibAssetManageHelperEx::GetAssetsList(InFilterPackagePaths, AssetRegistryDependencyTypes, m_AllAssets);
 	auto AnalysisAssetDependency = [](const TArray<FAssetDetail>& InAssetDetail, const TArray<EAssetRegistryDependencyTypeEx>& AssetRegistryDependencyTypes, bool bInAnalysisDepend)->FAssetDependenciesInfo
 	{
@@ -2179,6 +2350,36 @@ FReply SHotPatcherCreatePaks::DoCreateDiffPaks()
 	//ModifyAssetDependInfo使用完，清空
 	VersionDiffInfo.AssetDiffInfo.ModifyAssetDependInfo.AssetsDependenciesMap.Empty();
 
+
+	//加载场景分类
+	TArray<FString> InFilterPackagePaths = TArray<FString>{ "/Game" };
+	TArray<EAssetRegistryDependencyTypeEx> AssetRegistryDependencyTypes = m_CreatePaksSettings->GetAssetRegistryDependencyTypes();//TArray<EAssetRegistryDependencyTypeEx>{ EAssetRegistryDependencyTypeEx::All };
+	m_AllAssets.Empty();
+	UFLibAssetManageHelperEx::GetAssetsList(InFilterPackagePaths, AssetRegistryDependencyTypes, m_AllAssets);
+	auto AnalysisAssetDependency = [](const TArray<FAssetDetail>& InAssetDetail, const TArray<EAssetRegistryDependencyTypeEx>& AssetRegistryDependencyTypes, bool bInAnalysisDepend)->FAssetDependenciesInfo
+	{
+		FAssetDependenciesInfo RetAssetDepend;
+		if (InAssetDetail.Num())
+		{
+			UFLibAssetManageHelperEx::CombineAssetsDetailAsFAssetDepenInfo(InAssetDetail, RetAssetDepend);
+
+			if (bInAnalysisDepend)
+			{
+				FAssetDependenciesInfo AssetDependencies;
+				UFLibAssetManageHelperEx::GetAssetListDependenciesForAssetDetail(InAssetDetail, AssetRegistryDependencyTypes, AssetDependencies);
+
+				RetAssetDepend = UFLibAssetManageHelperEx::CombineAssetDependencies(RetAssetDepend, AssetDependencies);
+			}
+		}
+		return RetAssetDepend;
+	};
+	// 分析过滤器中指定的资源依赖
+	FAssetDependenciesInfo FilterAssetDependencies = AnalysisAssetDependency(m_AllAssets, AssetRegistryDependencyTypes, true);
+	m_AssetsDependency = UFlibPatchParserHelper::GetAssetsRelatedInfoByFAssetDependencies(FilterAssetDependencies, AssetRegistryDependencyTypes);
+	//分apk和dlc场景
+	FillTypeResourceSilptDLCandAPKLevel();
+
+
 	for (const auto& Platform : m_CreatePaksSettings->GetPakTargetPlatforms())
 	{
 		CleanData();
@@ -2200,6 +2401,8 @@ FReply SHotPatcherCreatePaks::DoCreateDiffPaks()
 			SetInfomationContentVisibility(EVisibility::Visible);
 			return FReply::Unhandled();
 		}
+
+		FillDirectAndRecursionDependence(true);
 
 		//处理修改的文件打包
 		if (!!PackagePathList.Num())
@@ -2419,7 +2622,7 @@ bool SHotPatcherCreatePaks::ExecuteUnrealPakProcess_ByDiff(TArray<FString>& PakN
 					/// <param name="strPlatform"></param>
 					/// <returns></returns>
 					CommandLine = FString::Printf(
-						TEXT("%s -create=\"%s\" -cryptokeys=\"%s\" -order=\"%s\" -patchpaddingalign=2048 -platform=Windows -compressionformats= -multiprocess -abslog=\"%s\""),
+						TEXT("%s -create=\"%s\" -cryptokeys=\"%s\" -order=\"%s\" -patchpaddingalign=2048 -platform=Windows -compressionformats=Zlib -multiprocess -abslog=\"%s\""),
 						*CurPakName, *PakFileListName, *CryptoName, *CookerOpenOrderName, *PakLOGName);
 					UE_LOG(LogTemp, Log, TEXT("=======================SplitPaks CommandLine: %s."), *CommandLine);
 				}
@@ -2429,7 +2632,7 @@ bool SHotPatcherCreatePaks::ExecuteUnrealPakProcess_ByDiff(TArray<FString>& PakN
 				{
 					CommandLine = FString::Printf(
 						//TEXT("%s -create=\"%s\" -cryptokeys=\"%s\" -order=\"%s\" -encryptindex -platform=Android -compressionformats= -multiprocess -abslog=\"%s\""),
-						TEXT("%s -create=\"%s\" -cryptokeys=\"%s\" -order=\"%s\" -encryptindex  -compressionformats= -multiprocess -abslog=\"%s\""),
+						TEXT("%s -create=\"%s\" -cryptokeys=\"%s\" -order=\"%s\" -encryptindex  -compressionformats=Zlib -multiprocess -abslog=\"%s\""),
 						*CurPakName, *PakFileListName, *CryptoName, *CookerOpenOrderName, *PakLOGName);
 					UE_LOG(LogTemp, Log, TEXT("=======================SplitPaks CommandLine: %s."), *CommandLine);
 				}
@@ -2492,6 +2695,8 @@ bool SHotPatcherCreatePaks::ExecuteUnrealPakProcess_ByDiff(TArray<FString>& PakN
 		WriteTypePakNumToJson("m_TypePakNum.json",true);
 
 		WriteTempFileNoSpecify2PakToJson("m_TempFileNoSpecify2Pak.json",true);
+
+		WriteScene2PaksDictToJson("AllScene2PakIDs.json",true);
 	}
 
 	return true;
@@ -2643,7 +2848,7 @@ bool SHotPatcherCreatePaks::DealAddAssetPak(FPatchVersionDiff& VersionDiffInfo, 
 	TArray<FReplaceText> ReplacePakCommandTexts = GetSettingObject()->GetReplacePakCommandTexts();
 	TArray<FString> PakCommands = UFlibPatchParserHelper::GetPakCommandStrByCommands(ChunkPakCommands, ReplacePakCommandTexts);
 
-	//保存整包命令文件
+	//保存整包命令文件(缺少额外文件的修改部分:ModifyExternalFiles)
 	FString PakCommandSavePath = FString::Printf(TEXT("%s/%s/%s/PakLists/%s_%s_All_PakCommands.txt"), 
 		*m_CreatePaksSettings->GetBuildDataPath(),
 		*m_strPlatform, FApp::GetProjectName(),
@@ -2697,7 +2902,7 @@ bool SHotPatcherCreatePaks::DealAddAssetPak(FPatchVersionDiff& VersionDiffInfo, 
 		}
 		else
 		{
-			m_TypeResource[Item.mAssetType].Add(Item.mPackagePath);
+			m_TypeResource[Item.mAssetType].AddUnique(Item.mPackagePath);
 		}
 
 	}
@@ -2821,6 +3026,10 @@ bool SHotPatcherCreatePaks::DealAddAssetPak(FPatchVersionDiff& VersionDiffInfo, 
 	}
 	//增加Temp文件管理
 	FillTempFilesinPak(true);
+
+	FillExternFilesInPak(true);
+
+	FillSceneDic_add();
 
 	//生成m_PakID2AllPakFileCommondsDic
 	FillPakID2AllPakFileCommondsDic_Add();
@@ -3100,6 +3309,7 @@ void SHotPatcherCreatePaks::FillPakID2AllPakFileCommondsDic_Add()
 			
 			//添加额外文件分包判断
 			FString RelativePath;
+			FString DirectoryPath;
 			if (TempFile2PakIsContains(itemFile.Value, RelativePathList, RelativePath))
 			{
 				if (m_TempFileRelativePath.Contains(RelativePath))
@@ -3115,6 +3325,16 @@ void SHotPatcherCreatePaks::FillPakID2AllPakFileCommondsDic_Add()
 			else if (m_TempFile2Pak.Contains(itemFile.Key))
 			{
 				PakName = m_TempFile2Pak[itemFile.Key];
+			}
+			else if (m_ExternFiles2Pak.Contains(itemFile.Key))
+			{
+				PakName = m_ExternFiles2Pak[itemFile.Key];
+				m_TempFileNoSpecify2Pak.Add(itemFile.Key, PakName);
+			}
+			else if (IsInExternDir(itemFile.Key, DirectoryPath))
+			{
+				PakName = m_ExternDirectory2Pak[DirectoryPath];
+				m_TempFileNoSpecify2Pak.Add(itemFile.Key, PakName);
 			}
 			else
 			{
@@ -3148,7 +3368,14 @@ void SHotPatcherCreatePaks::FillPakID2AllPakFileCommondsDic_Add()
 	for (auto itemPakID2AllFileDic : m_PakID2AllPakFileCommondsDic)
 	{
 		FString SavePath = FString::Printf(TEXT("%s/%s/%s/PakLists/%s.txt"), *BuildDataPath, *m_strPlatform, FApp::GetProjectName(), *itemPakID2AllFileDic.Key);
+
 		TArray<FString> OutPakCommand;
+
+		//生成包文件已存在，则往后更新追加
+		if (FPaths::FileExists(SavePath))
+		{
+			FFileHelper::LoadFileToStringArray(OutPakCommand, *SavePath);
+		}
 
 		for (auto item : itemPakID2AllFileDic.Value)
 		{

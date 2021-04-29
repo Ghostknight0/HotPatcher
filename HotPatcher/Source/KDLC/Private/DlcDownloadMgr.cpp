@@ -10,6 +10,7 @@
 #include "HAL/PlatformFilemanager.h"
 #include "Engine.h"
 #include "PakFileUtils.h"
+#include "FlibPakHelper.h"
 #if WITH_EDITOR
 #include "Editor/EditorEngine.h"
 #include "Editor/UnrealEdEngine.h"
@@ -157,14 +158,18 @@ void UDlcDownloadMgr::Init(FString urlRoot/*, FString downloadRoot*/)
 	s_DownloadPath = FPaths::ProjectPersistentDownloadDir() + "/Paks/";
 	s_UrlRoot = urlRoot;
 	//全局保留一个FPakPlatformFile，避免其他插件或者库有操作创建FPakPlatformFile 从而导致不是相同的FPakPlatformFile，不能Unmount pak的不利因素 
-	IPlatformFile* PakFileMgr = FPlatformFileManager::Get().GetPlatformFile(FPakPlatformFile::GetTypeName());
-	if (!PakFileMgr)
-	{
-		UE_LOG(LogTemp, Error, TEXT("FPakPlatformFile error Init Failed !"));
-		b_Init = false;
-		return;
-	}
-	s_pakPlatformFile = (FPakPlatformFile*)PakFileMgr;
+	//IPlatformFile* PakFileMgr = FPlatformFileManager::Get().GetPlatformFile(FPakPlatformFile::GetTypeName());
+	//if (!PakFileMgr)
+	//{
+	//	UE_LOG(LogTemp, Error, TEXT("FPakPlatformFile error Init Failed !"));
+	//	b_Init = false;
+	//	return;
+	//}
+	IPlatformFile& InnerPlatform = FPlatformFileManager::Get().GetPlatformFile();
+	s_pakPlatformFile = new FPakPlatformFile();
+	s_pakPlatformFile->Initialize(&InnerPlatform, TEXT(""));
+	FPlatformFileManager::Get().SetPlatformFile(*s_pakPlatformFile);
+	//s_pakPlatformFile = (FPakPlatformFile*)PakFileMgr;
 	//continueDownload.BindStatic(this, &UPakDownloadMgr::StartDownloadBigPak);
 	//continueDownload.BindUObject(this, &UDlcDownloadMgr::StartDownloadBigPak);
 	// Register delegate for ticker callback
@@ -229,7 +234,8 @@ void UDlcDownloadMgr::MountPakAllDownloaded()
 		if (s_pakPaths.Contains(i))
 			continue;
 		//auto pakPath = s_DownloadPath + i;
-		if (s_pakPlatformFile->Mount(*i, 1, nullptr))
+		//if (s_pakPlatformFile->Mount(*i, 1, nullptr))
+		if (UFlibPakHelper::MountPak(i, 1))
 		{
 			s_pakPaths.Add(i);
 		}
@@ -619,8 +625,8 @@ void UDlcDownloadMgr::OnRequestBigPakComplete(FHttpRequestPtr Request, FHttpResp
 	}
 	int32 ResponseCode = Response->GetResponseCode();
 
-	FString ResponseHeader = Response->GetHeader(TEXT("Content-Range"));
-	UE_LOG(LogTemp, Error, TEXT("download manifest. ResponseHeader = %s"), *ResponseHeader);
+	//FString ResponseHeader = Response->GetHeader(TEXT("Content-Range"));
+	//UE_LOG(LogTemp, Error, TEXT("download manifest. ResponseHeader = %s"), *ResponseHeader);
 
 	if (!EHttpResponseCodes::IsOk(ResponseCode))
 	{
@@ -661,12 +667,12 @@ void UDlcDownloadMgr::OnRequestBigPakComplete(FHttpRequestPtr Request, FHttpResp
 			{
 				auto file_name = FString::Printf(TEXT("%s_%d.temp"), *file, index);
 
-				IPlatformFile& platFormFile = FPlatformFileManager::Get().GetPlatformFile();
-				IFileHandle* fileHandle = platFormFile.OpenRead(*file_name);
-				fileHandle->SeekFromEnd();
-				int32 len1 = fileHandle->Tell();
-				UE_LOG(LogTemp, Error, TEXT("fileHandle!!! len1 = %d"), len1);
-				delete fileHandle;
+				//IPlatformFile& platFormFile = FPlatformFileManager::Get().GetPlatformFile();
+				//IFileHandle* fileHandle = platFormFile.OpenRead(*file_name);
+				//fileHandle->SeekFromEnd();
+				//int32 len1 = fileHandle->Tell();
+				//UE_LOG(LogTemp, Error, TEXT("fileHandle!!! len1 = %d"), len1);
+				//delete fileHandle;
 
 				FFileHelper::LoadFileToArray(File_Content, *file_name);
 				if (FFileHelper::SaveArrayToFile(File_Content, *file, &IFileManager::Get(), FILEWRITE_Append))
